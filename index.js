@@ -1,45 +1,39 @@
 const express  = require('express');
-const app = express();
 const MongoClient = require('mongodb').MongoClient;
+const objectId = require('mongodb').ObjectID;
+
+const app = express();
+const jsonParser = express.json();
 
 const mongoClient = new MongoClient("mongodb://localhost:27017/", { useNewUrlParser: true });
 
-mongoClient.connect((err, client) => {
-
-    const db = client.db('maximdb');
-    const collection = db.collection('user');
-
-    let user = { name: 'John', surname: 'Doe'};
-
-    collection.insertOne(user, (err, result) => {
-        if(err) {
-            console.log(err);
-
-            return false;
-        }
-        console.log('result.ops', result.ops);
-        client.close();
-    })
-});
+let dbClient;
 
 app.use("/static", express.static(__dirname + '/public'));
 
-app.use((req, res, next) => {
-    console.log('first middleware');
-    next();
-});
-
-app.use((req, res, next) => {
-    console.log('second middleware');
-    next();
+mongoClient.connect((err, client) => {
+    if(err) return console.log(err);
+    dbClient = client;
+    app.locals.collection = client.db('maximdb').collection('user');
+    app.listen(3000, () => {
+        console.log("Сервер ожидает подключения...");
+    })
 });
 
 app.get('/', (req, res) => {
     res.send('hello world')
 });
 
-// app.get('/greeting', (req, res) => {
-//     res.sendFile(__dirname + '/example.html')
-// });
+app.get('/api/users', (req, res) => {
+   const collection = req.app.locals.collection;
+   collection.find({}).toArray((err, users) => {
+       if (err) return console.log(err);
+       res.send(users)
+   })
+});
 
-app.listen(3001);
+// прослушиваем прерывание работы программы (ctrl-c)
+process.on("SIGINT", () => {
+    dbClient.close();
+    process.exit();
+});
